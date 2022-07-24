@@ -1,0 +1,118 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(baseballr)
+library(data.table)
+library(dplyr)
+library(arrow)
+library(RSQLite)
+library(DBI)
+```
+
+```{r}
+# Takes in a year, then gets full statcast data from the pitchers set for that year.
+# Exports to parquet by default but 'csv' is an option as well.
+# TODO: Make SQL functionality for this.
+export_statcast = function(year,file_type='parquet'){
+  dates = seq.Date(as.Date(paste0(year, '-03-01')),
+                   as.Date(paste0(year, '-12-01')), by = 'week')
+  date_grid = data.frame(start_date=dates,end_date=dates+6)
+  data_list = list()
+  for(i in 1:nrow(date_grid)){
+    df_current = data.frame(statcast_search_pitchers(start_date=date_grid[i,'start_date'],
+                                                     end_date=date_grid[i,'end_date']))
+    data_list[[i]] = df_current
+  }
+  # Necessary due to this function searching in weeks that have no MLB games.
+  good_entries = lapply(data_list, function(x) nrow(x))!=0
+  df_big = rbindlist(data_list[good_entries])
+  if(file_type=='csv'){
+    write.csv(df_big,paste('pitches_',year,'.csv',sep=''))
+  }
+  if(file_type %in% c('sqlite','SQLite','SQL','sql')){
+    conn=dbConnect(SQLite(),dbname='db_statcast_era.sqlite')
+    dbWriteTable(conn=conn,name='pitches','value'=df_big,append=TRUE)
+  }
+  else{
+    write_parquet(df_big,paste('pitches_',year,'.parquet',sep=''))
+  }
+}
+```
+
+```{r}
+# Exports all datasets for each year from the statcast era.
+
+for(i in 2017:2022){
+  export_statcast(i,file_type='sql')
+}
+```
+
+```{r}
+# Creates one big data frame of all info from the statcast era
+
+statcast_list = list()
+for(i in 2017:2022){
+  df_current = read_parquet(paste('pitches_',i,'.parquet',sep=''))
+  statcast_list[[i-2016]] = df_current
+}
+df_statcast = rbindlist(statcast_list)
+write_parquet(df_statcast,'pitches_statcast_era.parquet')
+```
+
+```{r}
+# Sends the statcast era file to SQL.
+
+conn = dbConnect(SQLite(),dbname='db_statcast_era.sqlite')
+dbWriteTable(conn=conn,name='pitches',value=df_statcast)
+```
+
+```{r}
+# df_statcast = read_parquet('pitches_statcast_era.parquet')
+df_2017 = read_parquet('pitches_2017.parquet')
+```
+
+```{r}
+# Adjust 'description' column to better adjust outcomes
+# 'hit_into_play' is the only description that's in its own category.
+
+removal_descriptions = c('foul_bunt','missed_bunt','pitchout','bunt_foul_tip',
+                    'intent_ball','foul_pitchout','swinging_pitchout')
+ball_descriptions = c('blocked_ball','hit_by_pitch')
+strike_descriptions = c('called_strike','swinging_strike','swinging_strike_blocked')
+
+df_statcast = df_statcast[!(df_statcast$description %in% removal_descriptions)]
+df_statcast$description[df_statcast$description %in% ball_descriptions] = 'ball'
+df_statcast$description[df_statcast$description %in% strike_descriptions] = 'strike'
+df_statcast$description[df_statcast$description=='foul_tip'] = 'foul'
+```
+
+
+```{r}
+statcast_features = c('release_speed','release_pos_x','release_pos_z','zone',
+                      'pfx_x','pfx_z','plate_x','plate_z','release_spin')
+```
+
+
+```{r}
+year = 2022
+dates = seq.Date(as.Date(paste0(year, '-03-01')),
+                 as.Date(paste0(year, '-12-01')), by = 'week')
+date_grid = data.frame(start_date=dates,end_date=dates+6)
+data_list = list()
+for(i in 1:nrow(date_grid)){
+  df_current = data.frame(statcast_search_pitchers(start_date=date_grid[i,'start_date'],
+                                                   end_date=date_grid[i,'end_date']))
+  data_list[[i]] = df_current
+}
+for(i in 1:length(data_list)){
+  if (nrow(data.frame(data_list[[i]]))==0){
+    data_list[i] = NULL
+  }
+}
+```
+
+
+
