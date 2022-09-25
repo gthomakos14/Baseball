@@ -1,0 +1,21 @@
+Creating an MLB Statcast Database in Python and R
+
+The Explanation:
+
+The baseballr package in R, and the pybaseball package in Python are godsends for anyone working with MLB statcast data. They scrape the various helpful baseball datasets and present it in a useful tabular format. For right now, we will be focusing on the statcast_search_pitchers function from baseballr and the statcast function from pybaseball. Both do similar things and deliver similar results: data for every single pitch thrown and the results of that pitch. This is helpful if you want to analyze details such as the spin rate of a pitch or the launch angle of a batted ball. The full data dictionary can be found here.
+
+The trouble with this wealth of information is that there are quite a few pitches thrown in an MLB season, even any given week can have nearly 30,000 pitches thrown which coincides to 30,000 rows for just one week out of an MLB season. This can be troublesome very quickly given the hardware on your machine and your willingness to cooperate with longer runtimes when doing analysis with your data.
+
+Enter the parquet file format, developed by Apache. Parquet is a table style file format which stores data very similarly to the ubiquitous csv format. The difference lies in the fact that parquet is a columnar stored format where csv is row based. Due to this, compression is much friendlier since entries in a column are going to be much more similar than entries in a row. For example, a row in our baseball database will have the batter’s name, the inning that the pitch took place in, and the horizontal velocity of the pitch, among other things. These are different types of variables: string, int, and float so it makes the row-wise compression that csv uses that much more complicated. However, parquet with its columnar storage will only ever have to compress along one variable type. Furthermore, it’s far easier to take a peek into a columnar dataset since most of the time you’ll want to be looking at only certain columns rather than every single column as you would in a csv file. Parquet and the Arrow libraries within R and python enable this by keeping the data compressed until certain operations are called, giving you time to trim down your working dataset to a manageable level.
+
+The Code:
+
+Above, we can see the two “export_statcast” functions: the top one, in dark mode, is written in R with the baseballr package, and the bottom one, in light mode, is written in Python with the pybaseball package. In order to acquire the statcast database on your local machine, simply run a loop from 2015 to 2022 (or whatever year it happens to be when you read this article) and your programming language of choice will begin exporting data from each pitch straight to the file path of your choice (working directory, by default) from the start of the statcast era all the way to the present day. There is functionality implemented for both csv and SQL formats as well as the parquet file format but for this particular use case, creating the database for subsequent analysis, I recommend the parquet format.
+
+The Comparisons:
+
+The screenshot above illustrates perfectly the benefits of the parquet format when it comes to storage. All of the files here are parquet files aside from the full SQL database and the one csv that was made for the year 2017. When organized by size, as in the screenshot, it’s easy to see the inflation caused by the csv format. At third place, behind only the SQL and parquet files of the entire statcast era, is the csv file for just 2017. Compared to its parquet counterpart, the csv is over 5 times as large.
+
+The Conclusions:
+
+The statcast databases available through the baseballr and pybaseball packages are a terrific resource for anyone interested in sabermetric analysis. However, the size of some of these datasets can present a challenge when using more traditional methods of data acquisition and wrangling. Apache’s parquet format solves these issues and allows for fast querying on large datasets using the arrow package.
